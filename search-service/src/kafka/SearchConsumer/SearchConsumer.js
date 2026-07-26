@@ -1,5 +1,6 @@
 import { kafkaTpoics } from "../../../../common-service/constant/kafka-topics.js";
 import { withDLQ } from "../../../../common-service/utils/DLQHandler.js";
+import searchService from "../../services/search.service.js";
 
 export class SearchConsumer {
     constructor({
@@ -51,19 +52,22 @@ export class SearchConsumer {
                     switch(topic){
                         case kafkaTpoics.STATION_CREATED:
                             // indexing the sation
+                            await searchService.indexStation(parsedValue)
                             break;
                         case kafkaTpoics.SCHEDULE_CREATED:
                             // indexing the schedule
+                            await searchService.indexTrainSchedule(parsedValue)
                             break;
                         case kafkaTpoics.ROUTE_CREATED:
                             //indexing route created
+                            await searchService.indexTrainRoute(parsedValue)
                             break;
                         case kafkaTpoics.SCHEDULE_CANCELLED:
                             // cancel Schedule
+                            await searchService.cancelindexTrainSchedule(parsedValue)
                             break;
 
                         default:
-
                             this.logger.warn(
                                 `Unknown topic: ${topic}`
                             );
@@ -77,8 +81,8 @@ export class SearchConsumer {
     }
 
     async stop(){
-        await this.consumer.disconnet();
-        await this.producer.disconnet();
+        await this.consumer.disconnect();
+        await this.producer.disconnect();
         this.logger.info("Search consumer stoppped")
     }
 }

@@ -2,11 +2,16 @@
 import express from 'express';
 import { corsMiddleWare } from './src/middlewares/cors.middleware.js';
 import { reqMiddleware } from './src/middlewares/req.middleware.js';
-import helmt from 'helmet';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { config } from './src/config/root';
-import { errorMiddleware } from './src/middlewares/error.middleware';
+import { config } from './src/config/root.js';
+import { errorMiddleware } from './src/middlewares/error.middleware.js';
 import { logger } from './src/config/logger.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express()
 

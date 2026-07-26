@@ -1,5 +1,6 @@
 import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js"
+import { adminProducer } from "../kafka/adminProducer.js";
 import { ConflictError, NotFoundError } from "../utils/error.js"
 
 const createStationService = async(data)=>{
@@ -19,13 +20,16 @@ const createStationService = async(data)=>{
 
     logger.info('Station Created', { id: station.id, code: station.code });
     // publish event
+    await adminProducer.publishStationCreated(station).catch((error)=>{
+        logger.error('Failed to publish station created event', { error: err.message });
+    })
     return station;
 }
 
 
 const getAllStations = async(page,limit,search)=>{
     const skip = (page-1) * limit;
-    const where =- search?{
+    const where = search?{
         OR: [
             { code: { contains: search, mode: 'insensitive'}},
             { name: { contains: search, mode: 'insensitive' }},

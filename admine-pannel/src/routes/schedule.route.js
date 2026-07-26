@@ -5,6 +5,6 @@ const router = Router();
 
 router.route("/schedule").post( createScheduleController);
 router.route("/schedule/:scheduleId").put(cancelScheduleController);
-router.route("/schedule").post(getAllScheduleController);
+router.route("/schedule").get(getAllScheduleController);
 
 export default router;

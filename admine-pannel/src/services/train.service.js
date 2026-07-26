@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.js";
+import { adminProducer } from "../kafka/adminProducer.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js";
 
 const createTrain = async(data)=>{
@@ -11,9 +12,9 @@ const createTrain = async(data)=>{
     if(existing){
         throw new ConflictError("Train with this number is already existis");
     }
-    const seatNumbers = seats.map((s)=> s.seatNumbers);
+    const seatNumbers = seats.map((s)=> s.seatNumber);
 
-    if(new Set(seatNumbers).length !== seatNumbers.length){
+    if(new Set(seatNumbers).size !== seatNumbers.length){
         throw new BadRequestError('Duplicate seat number found')
     }
    const train =  await prisma.train.create({
@@ -34,7 +35,9 @@ const createTrain = async(data)=>{
     });
 
     // publish event
-
+    await adminProducer.publishTrainCreated(train).catch((err) => {
+        logger.error('Failed to publish train created event', { error: err.message });
+    });
     return train;
 }
 
@@ -42,7 +45,7 @@ const createRoute = async(data)=>{
     const { trainId, stations } = data;
     const train = await prisma.train.findUnique({
         where: {
-            trainId
+            id: trainId
         }
     })
 
@@ -70,20 +73,20 @@ const createRoute = async(data)=>{
     if (exitingStation.length !== stationsIds.length){
         throw new BadRequestError("The stations Ids are conflict check for correctrness")
     }
-    const sorted = [...stations].sort((a, b) => a.sequanceNumber - b.sequanceNumber);
+    const sorted = [...stations].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
 
     for (let i = 0; i < sorted.length;i++){
-        if(sorted[i].sequanceNumber !== i+1){
+        if(sorted[i].sequenceNumber !== i+1){
             throw new BadRequestError('Sequnce number is starting 1')
         }
     }
-    await prisma.route.create({
+    const route = await prisma.route.create({
         data: {
             trainId,
             routeStations: {
                 create: stations.map((s)=>({
                     stationId: s.stationId,
-                    sequanceNumber: s.sequanceNumber,
+                    sequenceNumber: s.sequenceNumber,
                     arrivalTime: s.arrivalTime,
                     departureTime: s.departureTime,
                     distanceFromOrigin: s.distanceFromOrigin
@@ -93,7 +96,7 @@ const createRoute = async(data)=>{
         include: {
             routeStations: {
                 include: {station: true},
-                orderBy: {sequanceNumber: 'asc'},
+                orderBy: {sequenceNumber: 'asc'},
             },
         },
     });
@@ -112,18 +115,19 @@ const createRoute = async(data)=>{
     })
 
     // Publish event
+    await adminProducer.publishRouteCreated({ ...route, train: trainWithSeats })
     return route;
 }
 
 const getAllTrain = async()=>{
-    return prisma.train.findMany({
+    return await prisma.train.findMany({
         include: {
             seats: {orderBy: {seatNumber: 'asc'}},
             route:{
                 include: {
                     routeStations: {
                         include: {station: true},
-                        orderBy: {sequanceNumber: 'asc'}
+                        orderBy: {sequenceNumber: 'asc'}
                     }
                 }
             }
@@ -146,7 +150,7 @@ const getTrainById = async(id)=>{
                             station: true
                         },
                         orderBy:{
-                            sequanceNumber: 'asc'
+                            sequenceNumber: 'asc'
                         },
                     },
                 },

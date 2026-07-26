@@ -2,14 +2,14 @@ import { Client } from "@elastic/elasticsearch";
 import { config } from "./root";
 import { logger } from "./logger";
 
-const esClient = new Client({
+export const esClient = new Client({
     node: config.ELASTIC_SEARCH_URL
 });
 
-const STATION_INDEX = 'stations';
-const TRAIN_INDEX = 'trains';
-const ROUTE_INDEX = 'routes';
-const SCHEDULE_INDEX = 'schedules';
+export const STATION_INDEX = 'stations';
+export const TRAIN_INDEX = 'trains';
+export const ROUTE_INDEX = 'routes';
+export const SCHEDULE_INDEX = 'schedules';
 
 export const initIndices = async()=>{
     const stationExits = await esClient.indices.exists({

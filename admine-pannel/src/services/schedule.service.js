@@ -1,4 +1,6 @@
+import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
+import { adminProducer } from "../kafka/adminProducer.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/error.js";
 
 const createSchedule = async(data)=>{
@@ -73,6 +75,8 @@ const createSchedule = async(data)=>{
     };
 
     //Publish event
+    await adminProducer.publishScheduleCreated(eventPayload);
+    logger.info(`Schedule created and event published for train ${train.trainNumber} on ${departureDate}`);
     return schedule;
 }
 
@@ -123,6 +127,7 @@ const cancelSchedule = async(scheduleId)=>{
         },
     });
     // publish event
+    await adminProducer.publishScheduleCancelled(cancelStatus);
     return cancelStatus
 }
 
