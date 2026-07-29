@@ -22,14 +22,46 @@ const indexStation = async (event) => {
             refresh: true
         });
         logger.info(`Index Station ${station.name} (${station.code})`)
-    } catch (error) {
+    } catch (err) {
         logger.error(`Failed to index station: ${err.message}`);
+    }
+}
+
+const indexTrain = async (trainEvent) => {
+    try {
+        const train = trainEvent.data || trainEvent;
+        if (!train) return;
+        
+        const seatSummary = { total: 0, LOWER: 0, MIDDLE: 0, UPPER: 0, SIDE_LOWER: 0, SIDE_UPPER: 0 };
+        (train.seats || []).forEach((s) => {
+            seatSummary.total++;
+            if (seatSummary[s.seatType] !== undefined) seatSummary[s.seatType]++;
+        });
+
+        const doc = {
+            trainId: train.id,
+            trainNumber: train.trainNumber,
+            trainName: train.trainName,
+            route: [],
+            schedules: [],
+            seatSummary,
+        };
+
+        await esClient.index({
+            index: TRAIN_INDEX,
+            id: train.id,
+            document: doc,
+            refresh: true
+        });
+        logger.info(`Indexed bare train ${train.trainNumber}`);
+    } catch (err) {
+        logger.error(`Failed to index train: ${err.message}`);
     }
 }
 
 const indexTrainRoute = async (routeEvent) => {
     try {
-        const { train, routeStations } = routeEvent;
+        const { train, routeStations } = routeEvent.data || routeEvent;
         if (!train || !routeStations) return;
         const seatSummary = { total: 0, LOWER: 0, MIDDLE: 0, UPPER: 0, SIDE_LOWER: 0, SIDE_UPPER: 0 };
         (train.seats || []).forEach((s) => {
@@ -40,7 +72,7 @@ const indexTrainRoute = async (routeEvent) => {
         const doc = {
             trainId: train.id,
             trainNumber: train.trainNumber,
-            trainName: trainName,
+            trainName: train.trainName,
             route: routeStations.map((rs) => ({
                 stationId: rs.station.id,
                 stationName: rs.station.name,
@@ -78,21 +110,21 @@ const indexTrainRoute = async (routeEvent) => {
             });
         }
         logger.info(`Indexed train ${train.trainNumber} with ${routeStations.length} stations`);
-    } catch (error) {
-        logger.error(`Failed to index station: ${err.message}`);
+    } catch (err) {
+        logger.error(`Failed to index train route: ${err.message}`);
     }
 }
 
 const indexTrainSchedule = async (scheduleEvent) => {
-    const { scheduleId, trainId, departureDate, status, seats } = scheduleEvent
+    const { scheduleId, trainId, departureDate, status, seats } = scheduleEvent.data || scheduleEvent;
     const totalSeats = seats ? seats.length : 0;
     try {
         await esClient.update({
-            id: TRAIN_INDEX,
+            index: TRAIN_INDEX,
             id: trainId,
             script: {
                 source:
-                    ` if (ctx._source.schedules == null) { ctx._source.schedules = []; }
+                    `if (ctx._source.schedules == null) { ctx._source.schedules = []; }
                 ctx._source.schedules.removeIf(s -> s.scheduleId == params.scheduleId);
                 ctx._source.schedules.add(params.newSchedule);
                 `,
@@ -111,12 +143,12 @@ const indexTrainSchedule = async (scheduleEvent) => {
             refresh: true
         });
         logger.info(`Indexed schedule ${scheduleId} for train ${trainId}`);
-    } catch (error) {
+    } catch (err) {
         logger.warn(`Could not index schedule for train ${trainId}: ${err.message}`);
     }
 }
 
-const cancelindexTrainSchedule = async (event) => {
+const cancelIndexTrainSchedule = async (event) => {
     const schedule = event.data;
     if (!schedule) return;
 
@@ -144,10 +176,16 @@ const cancelindexTrainSchedule = async (event) => {
     }
 };
 
+const searchTrainService = async(from,to,date)=>{
+    
+}
+
 
 export default {
     indexStation,
+    indexTrain,
     indexTrainRoute,
     indexTrainSchedule,
-    cancelindexTrainSchedule
+    cancelIndexTrainSchedule,
+    searchTrainService
 }

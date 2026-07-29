@@ -26,12 +26,12 @@ export class KafkaProducer{
             this.isConnected = true;
             logger.info("Kafka producer connected");
         })
-        .cacth((error)=>{
+        .catch((error)=>{
             logger.error("Kafka producer connection failed",{
                 error: error.message
             });
             throw error;
-        }).finnaly(()=>{
+        }).finally(()=>{
             this.connectionPromise = null;
         });
         return this.connectionPromise;

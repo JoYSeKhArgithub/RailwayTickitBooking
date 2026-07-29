@@ -1,6 +1,6 @@
 import { Client } from "@elastic/elasticsearch";
-import { config } from "./root";
-import { logger } from "./logger";
+import { config } from "./root.js";
+import { logger } from "./logger.js";
 
 export const esClient = new Client({
     node: config.ELASTIC_SEARCH_URL

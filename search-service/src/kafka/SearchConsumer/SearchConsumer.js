@@ -1,6 +1,6 @@
 import { kafkaTpoics } from "../../../../common-service/constant/kafka-topics.js";
 import { withDLQ } from "../../../../common-service/utils/DLQHandler.js";
-import searchService from "../../services/search.service.js";
+
 
 export class SearchConsumer {
     constructor({
@@ -24,57 +24,48 @@ export class SearchConsumer {
         await this.consumer.subscribe({
             topics: [
                 kafkaTpoics.STATION_CREATED,
+                kafkaTpoics.TRAIN_CREATED,
                 kafkaTpoics.ROUTE_CREATED,
                 kafkaTpoics.SCHEDULE_CREATED,
                 kafkaTpoics.SCHEDULE_CANCELLED,
-                // Seat avalable Topic also Important
+                // Seat available Topic also Important
             ],
             fromBeginning: true,
         });
 
-        await this.consumer.run({
-            eachMessage:  withDLQ(this.producer,
+        await this.consumer.run(
+            withDLQ(
+                this.producer,
                 kafkaTpoics.DLQ_SEARCH,
                 this.logger,
-                async ({
-                    topic,
-                    partition,
-                    message,
-                    parsedValue,
-                    })=>{
-                    this.logger.info(
-                        `Processing ${topic}`,{
-                            partition,
-                            offset: message.offset
-                        }
-                    );
+                async ({ topic, partition, message, parsedValue }) => {
+                    this.logger.info(`Processing ${topic}`, {
+                        partition,
+                        offset: message.offset,
+                    });
 
-                    switch(topic){
+                    switch (topic) {
                         case kafkaTpoics.STATION_CREATED:
-                            // indexing the sation
-                            await searchService.indexStation(parsedValue)
+                            await this.searchService.indexStation(parsedValue);
+                            break;
+                        case kafkaTpoics.TRAIN_CREATED:
+                            await this.searchService.indexTrain(parsedValue);
                             break;
                         case kafkaTpoics.SCHEDULE_CREATED:
-                            // indexing the schedule
-                            await searchService.indexTrainSchedule(parsedValue)
+                            await this.searchService.indexTrainSchedule(parsedValue);
                             break;
                         case kafkaTpoics.ROUTE_CREATED:
-                            //indexing route created
-                            await searchService.indexTrainRoute(parsedValue)
+                            await this.searchService.indexTrainRoute(parsedValue);
                             break;
                         case kafkaTpoics.SCHEDULE_CANCELLED:
-                            // cancel Schedule
-                            await searchService.cancelindexTrainSchedule(parsedValue)
+                            await this.searchService.cancelIndexTrainSchedule(parsedValue);
                             break;
-
                         default:
-                            this.logger.warn(
-                                `Unknown topic: ${topic}`
-                            );
+                            this.logger.warn(`Unknown topic: ${topic}`);
                     }
                 }
             )
-        });
+        );
         this.logger.info(
             "Search consumer running..."
         ); 

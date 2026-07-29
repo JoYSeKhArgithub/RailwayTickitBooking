@@ -1,4 +1,4 @@
-import { DLQ_MAX_RETRIES } from "../constant/kafka-topics";
+import { DLQ_MAX_RETRIES } from "../constant/kafka-topics.js";
 
 export const withDLQ = (producer, dlqTopic, logger, handler)=>{
     const retryLogic = new Map();

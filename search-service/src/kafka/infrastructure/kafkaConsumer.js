@@ -1,3 +1,5 @@
+import { logger } from "../../config/logger.js";
+
 export class KafKaConsumer {
     constructor(kafkaClient,groupId){
         this.groupId = groupId;
