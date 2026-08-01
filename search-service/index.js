@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { initIndices, recreateIndices } from './src/config/elasticSearch.js';
 import { searchConsumer } from './src/kafka/SearchConsumer/index.js';
 import { searchKafkaConsumer, kafkaProducer } from './src/config/kafka.js';
+import searchRouter from './src/routes/search.route.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+app.use('/search',searchRouter)
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: config.SERVICE_NAME }));
 app.use(errorMiddleware);
