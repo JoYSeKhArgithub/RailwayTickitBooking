@@ -1,4 +1,5 @@
-import { kafkaTpoics } from "../../../common-service/constant/kafka-topics.js"
+import { kafkaTpoics } from "../../../common-service/constant/kafka-topics.js";
+import { producer } from "../config/kafka.js";
 
 
 export class AdminProducer{
@@ -18,7 +19,7 @@ export class AdminProducer{
         )
     }
     
-    async publsihTrainCreated(train){
+    async publishTrainCreated(train){
         return this.producer.sendMessage(
             kafkaTpoics.TRAIN_CREATED,
             `train-${train.id}`,
@@ -67,3 +68,4 @@ export class AdminProducer{
     }
 }
 
+export const adminProducer = new AdminProducer(producer);

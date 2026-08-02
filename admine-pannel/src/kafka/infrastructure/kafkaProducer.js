@@ -44,11 +44,11 @@ export class KafkaProducer{
         return this.connectionPromise;
     }
 
-    async disconnected(){
+    async disconnect(){
         if(!this.isConnected){
             return;
         }
-        await this.producer.disconnected()
+        await this.producer.disconnect()
         this.isConnected = false;
         logger.info(" Kafka producer disconnected")
     }

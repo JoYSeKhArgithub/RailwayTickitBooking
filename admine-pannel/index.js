@@ -9,6 +9,7 @@ import { errorMiddleware } from './src/middlewares/error.middleware.js';
 import stationRoute from './src/routes/station.route.js';
 import scheduleRoute from './src/routes/schedule.route.js';
 import trainRoute from './src/routes/train.route.js'
+import { producer } from './src/config/kafka.js';
 
 const app = express();
 
@@ -61,6 +62,7 @@ const startServer = ()=>{
             logger.info("Shutting down gracefully");
             server.close(async()=>{
                 // disconneting the producer Kafka
+                await producer.disconnect();
                 logger.info("Server Closed");
                 process.exit(0);
             });

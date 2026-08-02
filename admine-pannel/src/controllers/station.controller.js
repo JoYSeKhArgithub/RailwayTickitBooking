@@ -61,7 +61,7 @@ export const getStationByIdInterval = asyncHandler(async(req,res)=>{
         throw new BadRequestError("Station Id is missing");
     }
 
-    const station = stationService.getStationById(stationId);
+    const station = await stationService.getStationById(stationId);
     res.status(200).json({
         success: true,
         data: station?{

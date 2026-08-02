@@ -29,7 +29,7 @@ export const createRouteController = asyncHandler(async(req,res)=>{
         throw new BadRequestError("The stations contain atleast 2 stations")
     }
     const route = await trainService.createRoute({ trainId, stations });
-    return res.status(201).data({
+    return res.status(201).json({
         success: true,
         message: "Route created successfully",
         data: route
