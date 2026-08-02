@@ -8,7 +8,10 @@ export const kafkaTpoics = {
     ROUTE_UPDATED: 'admin.route-updated',
     SCHEDULE_CANCELLED: 'admin.schedule-cancelled',
 
+    SEAT_AVAILABILITY_UPDATED: 'inventory.seat-availability-updated',
+
     DLQ_SEARCH: 'dlq.search-service',
+    DLQ_INVENTORY: 'dlq.inventory-service',
 }
 
 export const DLQ_MAX_RETRIES = 3;

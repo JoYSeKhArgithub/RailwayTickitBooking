@@ -48,7 +48,7 @@ const createSchedule = async(data)=>{
     });
 
     const eventPayload = {
-        schedule: schedule.id,
+        scheduleId: schedule.id,
         trainId: train.id,
         trainNumber: train.trainNumber,
         trainName: train.trainName,
