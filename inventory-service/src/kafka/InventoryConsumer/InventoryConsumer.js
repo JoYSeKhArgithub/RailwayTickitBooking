@@ -20,8 +20,8 @@ export class InventoryConsumer{
             ],
             fromBeginning: true,
         });
-        await this.consumer.run({
-            eachMessage: withDLQ(
+        await this.consumer.run(
+             withDLQ(
                 this.producer,
                 kafkaTpoics.DLQ_INVENTORY,
                 this.logger,
@@ -42,7 +42,7 @@ export class InventoryConsumer{
                     }
                 }
             ),
-        });
+        );
         this.logger.info('Inventory consumer running...');
     }
     async stop() {

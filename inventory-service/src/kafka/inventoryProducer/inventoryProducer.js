@@ -25,8 +25,9 @@ export class InventoryProducer {
                     error: error.message,
                     key,
                 });
+                let delay = RETRY_DELAY_MS* (2**(attempt-1));
                 if (attempt < MAX_PUBLISH_RETRIES) {
-                    await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt));
+                    await new Promise(r => setTimeout(r, delay));
                 }
             }
         }
