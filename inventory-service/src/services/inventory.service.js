@@ -157,8 +157,85 @@ const getSceduleService= async(scheduleId)=>{
     }
 }
 
+const getScheduleSeatsService = async(scheduleId,filter={})=>{
+    const data = await prisma.scheduleInventory.findUnique({
+        where: {
+            scheduleId
+        }
+    })
+    if(!data) throw new NotFoundError('The train is not found for this seats');
+
+    const where = {scheduleId};
+    if(filter.seatType) where.seatType = seatType;
+    if(filter.status) where.status = seatType.status;
+
+    const seats = await prisma.seatInventory.findMany({
+        where,
+        orderBy: {seatNumber: 'asc'},
+        select:{
+            seatId: true,
+            seatNumber: true,
+            seatType: true,
+            price: true,
+            status: true,
+            lockedBy: true,
+            lockeExpiresAt: true,
+            bookingId: true
+        } 
+    });
+
+    if (filter.fromSeq && filter.toSeq){
+        const fromSeq = parseInt(filter.fromSeq);
+        const toSeq = parseInt(filter.toSeq);
+
+        const overlappingStationsLocks = await prisma.seatSegmentLock.findMany({
+            where: {
+                scheduleId,
+                status: {in: ['LOCKED','BOOKED']},
+                fromSeq: {lt: toSeq},
+                toSeq: {gt: fromSeq}
+            },
+            select: {
+                seatId: true,
+                status: true
+            }
+        });
+
+        const overLapSeatIds = new Set(overlappingStationsLocks.map((x)=>x.seatId));
+
+        const seatWithAnyLock = await prisma.seatInventory.findMany({
+            where: {
+                scheduleId,
+                status: {in:['LOCKED','BOOKED']}
+            },
+            select: {seatId: true},
+            distinct: ['seatId']
+        });
+
+        const seatWithLocks = new Set(seatWithAnyLock.map((m)=> m.seatId));
+        seats = seats.map((s)=>{
+            if(overLapSeatIds.has(s.seatId)){
+                return {...s,segmentStatus: 'UNAVAILABLE'};
+            }
+            if((seat.status === 'BOOKED' || seat.status==='LOCKED') && !seatWithLocks.has(s.seatId)){
+                return {...s,segmentStatus: 'UNAVAILABLE'};
+            }
+            return { ...s, segmentStatus : 'AVAILABLE'};
+        });
+    }
+
+    return {
+        scheduleId,
+        totalSeats: data.totalSeats,
+        seats
+    }
+}
+
+
+
 export default {
     initializeInventory,
     cancelScheduleInventory,
-    getSceduleService
+    getSceduleService,
+    getScheduleSeatsService
 }
