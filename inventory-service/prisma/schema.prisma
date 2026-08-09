@@ -12,7 +12,7 @@ datasource db {
   provider = "postgresql"
 }
 
-enum SeatStatus{
+enum SeatStatus {
   AVAILABLE
   LOCKED
   BOOKED
