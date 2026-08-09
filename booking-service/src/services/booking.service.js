@@ -190,5 +190,123 @@ const createBookingService = async (userId, scheduleId, seatIds, passengers, ide
     }
 }
 
+const getBookingService = async(bookingId, userId)=>{
+    const booking = await prisma.booking.findUnique({
+        where: {
+            id: bookingId
+        },
+        include: {
+            seats: {
+                orderBy: {
+                    seatNumber: 'asc'
+                }
+            },
+            passengers: true
+        }
+    })
 
-export default {createBookingService}
+    if(!booking || booking.userId !== userId){
+        throw new NotFoundError('Booking not found')
+    }
+
+    return {
+        id: booking.id,
+        status: booking.status,
+        scheduleId: booking.scheduleId,
+        trainId: booking.trainId,
+        trainNumber: booking.trainNumber,
+        trainName: booking.trainName,
+        departureDate: booking.departureDate,
+        totalAmount: booking.totalAmount,
+        seatCount: booking.seatCount,
+        fromStationId: booking.fromStationId,
+        toStationId: booking.toStationId,      
+        fromSeq: booking.fromSeq,              
+        toSeq: booking.toSeq,                  
+        paymentOrderId: booking.paymentOrderId,
+        lockExpiresAt: booking.lockExpiresAt,
+        failureReason: booking.failureReason,
+        seats: booking.seats.map(s => ({
+            seatId: s.seatId,
+            seatNumber: s.seatNumber,
+            seatType: s.seatType,
+            price: s.price,
+        })),
+        passengers: booking.passengers.map(p => ({
+            id: p.id,
+            name: p.name,
+            age: p.age,
+            gender: p.gender,
+            seatId: p.seatId,
+        })),
+        createdAt: booking.createdAt,
+        updatedAt: booking.updatedAt,
+    }
+}
+
+const getUserBookingsService = async(userId,{ status,
+    page,
+    limit})=>{
+
+    let skip = (page-1)* limit;
+    const where = {userId};
+    if(status) where.status = status.toUpperCase();
+
+    const [bookigs,total] = await Promise.all([
+        prisma.booking.findMany({
+            where,
+            include:{
+                seats:{
+                    orderBy: {
+                        seatNumber: 'asc'
+                    }
+                },
+                passengers: true
+            },
+            orderBy:{
+                createAt: 'desc'
+            },
+            skip,
+            take: limit
+        }),
+        prisma.booking.count({where})
+    ])
+
+    return {
+        bookings: bookings.map(b => ({
+            id: b.id,
+            status: b.status,
+            scheduleId: b.scheduleId,
+            trainNumber: b.trainNumber,
+            trainName: b.trainName,
+            departureDate: b.departureDate,
+            totalAmount: b.totalAmount,
+            seatCount: b.seatCount,
+            fromStationId: b.fromStationId, 
+            toStationId: b.toStationId,      
+            fromSeq: b.fromSeq,              
+            toSeq: b.toSeq,                  
+            seats: b.seats.map(s => ({
+                seatId: s.seatId,
+                seatNumber: s.seatNumber,
+                seatType: s.seatType,
+                price: s.price,
+            })),
+            passengers: b.passengers.map(p => ({
+                name: p.name,
+                age: p.age,
+                gender: p.gender,
+            })),
+            createdAt: b.createdAt,
+        })),
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
+}
+
+
+export default { createBookingService, getBookingService, getUserBookingsService }

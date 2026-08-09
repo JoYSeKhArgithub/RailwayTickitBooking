@@ -15,3 +15,28 @@ export const createBookingController = asyncHandler(async(req,res)=>{
         data: result
     })
 })
+
+
+export const getBookingsController = asyncHandler(async(req,res)=>{
+    const userId = req.user.id;
+    const {bookingId} = req.params;
+    const result = await bookingService.getBookingService(bookingId,userId);
+    res.status(200).json({
+        success: true,
+        data: result
+    });
+})
+
+export const getUsersBooking = asyncHandler(async(req,res)=>{
+    const userId = req.user.id;
+    const {status,page,limit} = req.query;
+    const result = await bookingService.getUserBookingsService(userId,{
+        status,
+        page: page? parseInt(page,10):1,
+        limit: limit? parseInt(page,10):1
+    })
+    res.status(200).json({
+        success: true,
+        data: result
+    })
+})
