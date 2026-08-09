@@ -32,6 +32,16 @@ const withRetry = async (fn, maxRetries = 3) => {
     throw lastError;
 }
 
+export function extractError(error) {
+    if (error.response?.data) {
+        return {
+            status: error.response.status,
+            message: error.response.data.message || error.message,
+            code: error.response.data.error,
+        };
+    }
+    return { status: 500, message: error.message, code: 'INVENTORY_SERVICE_ERROR' };
+}
 
 export const paymentClient ={
     createPaymentOrder: async (bookingId, amount, userId, idempotencyKey)=>{
@@ -44,5 +54,17 @@ export const paymentClient ={
             });
             return data.data
         })
+    },
+
+    initiateRefund: async (paymentOrderId, amount, reason, idempotencyKey)=>{
+        return withRetry(async () => {
+            const { data } = await client.post('/refunds', {
+                paymentOrderId,
+                amount,
+                reason,
+                idempotencyKey,
+            });
+            return data.data;
+        });
     }
 }

@@ -112,7 +112,76 @@ const sagaCreatePaymentOrder = async(booking)=>{
     }
 }
 
+
+const rollbackCreatePayment = async (booking) => {
+    if (!booking.paymentOrderId) return;
+
+    logger.info(`Compensating CREATE_PAYMENT for booking ${booking.id}`);
+    try {
+        const idempotencyKey = `${booking.id}-refund-compensation`;
+        await paymentClient.initiateRefund(
+            booking.paymentOrderId,
+            booking.totalAmount,
+            'booking_compensation',
+            idempotencyKey
+        );
+
+        await prisma.sagaLog.updateMany({
+            where: { bookingId: booking.id, step: 'CREATE_PAYMENT', status: 'COMPLETED' },
+            data: { status: 'COMPENSATED' },
+        });
+    } catch (error) {
+        logger.error(`Failed to compensate CREATE_PAYMENT for booking ${booking.id}`, {
+            error: error.message,
+        });
+    }
+}
+
+const rollbackHoldSeats = async () => {
+    logger.info(`Compensating HOLD_SEATS for booking ${booking.id}`);
+    try {
+        await inventoryClient.releaseSeats(booking.scheduleId, seatIds, booking.userId, booking.fromSeq, booking.toSeq);
+        await prisma.sagaLog.updateMany({
+            where: { bookingId: booking.id, step: 'HOLD_SEATS', status: 'COMPLETED' },
+            data: { status: 'COMPENSATED' },
+        });
+    } catch (error) {
+        logger.error(`Failed to compensate HOLD_SEATS for booking ${booking.id}`, {
+            error: error.message,
+        });
+    }
+}
+
+
+
+const rollbackAll = async(bookig,seatIds)=>{
+    const completeSteps = await prisma.sagaLog.findMany({
+        where: {
+            bookingId: booking.id,
+            status: 'COMPLETED'
+        },
+        orderBy:{
+            createdAt: 'desc'
+        }
+    });
+
+    for( step of completeSteps){
+        switch(step.step){
+            case 'CREATE_PAYMENT':
+                await rollbackCreatePayment(booking);
+                break;
+            case 'HOLD_SEATS':
+                await rollbackHoldSeats(booking,seatIds);
+                break;
+        }
+    }
+
+}
+
+
+
 export default {
     sagaHoldSeats,
-    sagaCreatePaymentOrder
+    sagaCreatePaymentOrder,
+    rollbackAll
 }

@@ -77,6 +77,18 @@ export const invenToryClient = {
             });
             return data.data;
         })
+    },
+    releaseSeats: async (scheduleId, seatIds, userId, fromSeq, toSeq)=>{
+        return withRetry(async () => {
+            const { data } = await client.post('/seats/unlock', {
+                scheduleId,
+                seatIds,
+                userId,
+                fromSeq,  
+                toSeq,    
+            });
+            return data.data;
+        });
     }
 }
 

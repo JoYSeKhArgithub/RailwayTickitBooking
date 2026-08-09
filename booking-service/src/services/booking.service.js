@@ -176,7 +176,7 @@ const createBookingService = async (userId, scheduleId, seatIds, passengers, ide
     } catch (error) {
         logger.error(`Booking creation failed for user ${userId}`, { error: error.message });
         if(booking){
-            await saga.compensateAll(booking, sortedSeatIds);
+            await saga.rollbackAll(booking, sortedSeatIds);
             await prisma.booking.update({
                 where: {id: booking.id},
                 data: {
