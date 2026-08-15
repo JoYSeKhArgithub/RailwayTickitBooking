@@ -1,7 +1,7 @@
 import inventoryService from "../services/inventory.service";
 
 export const getSchedule = asyncHandler(async(req,res)=>{
-    const {scheduleId} = req.body;
+    const {scheduleId} = req.params;
     const scheduleData = await inventoryService.getSceduleService(scheduleId);
     res.status(200).json({
         success: true,
