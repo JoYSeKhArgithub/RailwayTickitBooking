@@ -15,7 +15,7 @@ export const withDLQ = (producer, dlqTopic, logger, handler)=>{
                 offset: message.offset,
                 error: error.message
             });
-            await sendeDLQ(producer, dlqTopic, topic,partition, message, error,logger);
+            await sendDLQ(producer, dlqTopic, topic,partition, message, error,logger);
             retryLogic.delete(messageKey);
             return;
         }
@@ -32,7 +32,7 @@ export const withDLQ = (producer, dlqTopic, logger, handler)=>{
                     partition,
                     message: message.offset
                 });
-                await sendeDLQ(producer,dlqTopic,topic,partition,message,error,logger);
+                await sendDLQ(producer,dlqTopic,topic,partition,message,error,logger);
                 retryLogic.delete(messageKey);
             }else{
                 throw error;

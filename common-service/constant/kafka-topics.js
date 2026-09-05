@@ -1,4 +1,4 @@
-export const kafkaTpoics = {
+export const kafkaTopics = {
     TRAIN_CREATED: 'admin.train-created',
     STATION_CREATED: 'admin.station-created',
     ROUTE_CREATED: 'admin.route-created',
@@ -10,8 +10,21 @@ export const kafkaTpoics = {
 
     SEAT_AVAILABILITY_UPDATED: 'inventory.seat-availability-updated',
 
+    // Notification topics
+    OTP_EMAIL: 'notification.otp-email',
+    WELCOME_EMAIL: 'notification.welcome-email',
+    BOOKING_CONFIRMED: 'booking.confirmed',
+    BOOKING_FAILED: 'booking.failed',
+    BOOKING_CANCELLED: 'booking.cancelled',
+
+    // DLQ topics
     DLQ_SEARCH: 'dlq.search-service',
     DLQ_INVENTORY: 'dlq.inventory-service',
-}
+    DLQ_NOTIFICATION: 'dlq.notification-service',
+};
 
-export const DLQ_MAX_RETRIES = 3;
+// Aliases for compatibility
+export const kafkaTpoics = kafkaTopics;
+export const KAFKA_TOPICS = kafkaTopics;
+
+export const DLQ_MAX_RETRIES = 3;
