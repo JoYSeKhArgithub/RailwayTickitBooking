@@ -55,7 +55,6 @@ export const paymentClient ={
             return data.data
         })
     },
-
     initiateRefund: async (paymentOrderId, amount, reason, idempotencyKey)=>{
         return withRetry(async () => {
             const { data } = await client.post('/refunds', {
@@ -66,5 +65,21 @@ export const paymentClient ={
             });
             return data.data;
         });
-    }
+    },
+    getPaymentStatus: async(paymentOrderId)=>{
+        return withRetry(async()=>{
+            const {data} = await client.get(`/order/${paymentOrderId}`);
+            return data.data;
+        })
+    },
+    verifyPayment: async(paymentOrderId,gatewayPaymentId,gatewaySignature)=>{
+        return withRetry(async()=>{
+            const { data } = await client.post(`/order/${paymentOrderId}/verify`,{
+                gatewayPaymentId,
+                gatewaySignature
+            });
+            return data.data;
+        })
+    },
+    
 }

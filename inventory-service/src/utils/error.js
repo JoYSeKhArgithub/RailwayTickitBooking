@@ -7,7 +7,7 @@ export class AppError extends Error{
     }
 }
 
-export class BadRequest extends AppError{
+export class BadRequestError extends AppError{
     constructor(message,code='BAD_REQUEST'){
         super(message,400,code)
     }

@@ -2,7 +2,7 @@ import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
 import { config } from "../config/root.js";
 import { inventroyProducer } from "../kafka/inventoryProducer.js";
-import { BadRequest, ConflictError, NotFoundError } from "../utils/error.js";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../utils/error.js";
 import { retryTransactrion } from "../utils/retryTransaction.js";
 
 const recomputeSegmentSeatStatus = async (tx, scheduleId, seatIds)=>{
@@ -208,7 +208,7 @@ const cancelScheduleInventory= async(eventData)=>{
 }
 
 const getSceduleService= async(scheduleId)=>{
-    if (!scheduleId) throw new BadRequest('Scedule Id is mandatory to get scedule');
+    if (!scheduleId) throw new BadRequestError('Scedule Id is mandatory to get scedule');
     const schdeuleData = await prisma.scheduleInventory.findUnique({
         where:{
             scheduleId
@@ -317,7 +317,7 @@ const lockSeatsService = async (scheduleId, seatIds, userId,ttlSec,fromSeq,toSeq
             });
 
             if(!schedule) throw new NotFoundError('Schedule id is not found');
-            if(schedule.status !== 'ACTIVE') throw new BadRequest('schedule is not active');
+            if(schedule.status !== 'ACTIVE') throw new BadRequestError('schedule is not active');
 
             const seats = await tx.$queryRaw`
                     SELECT id,"seatId","seatNumber",status,"lockedBy"
@@ -446,6 +446,205 @@ const lockSeatsService = async (scheduleId, seatIds, userId,ttlSec,fromSeq,toSeq
     // publish to kafka
 }
 
+const confirmSeatsService = async(scheduleId,seatIds,userId,bookingId,fromSeq,toSeq)=>{
+    const result = await retryTransactrion(async()=>{
+       return prisma.$transaction(async(tx)=>{
+        const seats = await tx.$queryRaw`
+            SELECT id, "seatId", "seatNumber" status ,"lockedBy"
+            FROM seat_inventories
+            WHERE "scheduleId" = ${scheduleId}
+            AND "seatId" = ANY(${seatIds}::text[])
+            FOR UPDATE NOWAIT
+        `
+
+        if(seatIds.length !== seats.length){
+            throw new NotFoundError(`One or more seats are missing`);
+        }
+
+        if(fromSeq && toSeq){
+            const update = await tx.$executeRaw`
+                UPDATE  seat_segment_locks
+                SET status= 'BOOKED', "bookingId" = ${bookingId},
+                    "lockExpiresAt" = NULL,
+                    version= version+1, "updatedAt"=NOW()
+                 WHERE "scheduleId" = ${scheduleId}
+                 AND "seatId" = ANY(${seatIds}::text[])
+                 AND "lockedBy" = ${userId}
+                 AND "fromSeq" = ${fromSeq}
+                 AND "toSeq" = ${toSeq}
+                 AND status = 'LOCKED'
+            `
+            if(updated === 0){
+                throw new ConflictError(
+                    'Segment lock expired or not found. Please lock seats again.',
+                    'LOCK_EXPIRED'
+                );
+            }
+        }else{
+            const notLockedSeats = seats.filter(s=>s.status !== 'LOCKED');
+            if(notLockedSeats.length>0){
+                throw new ConflictError(
+                    'Lock expired or seats not in LOCKED status. Please lock seats again.',
+                    'LOCK_EXPIRED'
+                )
+            }
+            const notLockedByUser = seats.filter(s=> s.lockedBy !== userId);
+            if(notLockedByUser.length>0){
+                throw new ForbiddenError('Some seats are not locked by you')
+            }
+        }
+
+        if(fromSeq && toSeq){
+            const affectedSeatIds = seats.map(s=> s.seatId);
+            await recomputeSegmentSeatStatus(tx,scheduleId,affectedIds);
+            const counts = await recountScheduleAggregates(tx,scheduleId);
+            const schedule = await tx.scheduleInventory.findUnique({
+                where:{
+                    scheduleId
+                }
+            })
+            return {
+                scheduleId,
+                tarinId: schedule.trainId,
+                bookingId,
+                confirmedSeats: seats.map(s=>({
+                    seatId:s.seatId,
+                    seatNumber: s.seatNumber,
+                    status: 'BOOkED',
+                })),
+                counts,
+            };
+        }
+        const seatPeakId = seats.map(s=> s.id);
+        await tx.$executeRaw`
+            UPDATE seat_inventories
+            SET status = 'BOOKED',"bookingId"=${bookingId}
+                "lockExpiresAt" = NULL
+                version = version + 1, "updatedAt" = NOW()
+            WHERE id = ANY(${seatPeakId}::text[])
+        `;
+
+        const schedule = await tx.scheduleInventory.findUnique({
+            where:{
+                scheduleId
+            }
+        });
+
+        await tx.$executeRaw`
+            UPDATE schedule_inventories
+            SET locked = locked - ${seats.length}
+                booked = booked + ${seats.length}
+                version = version + 1,
+                "updatedAt" = NOW()
+            WHERE "scheduleId" = ${scheduleId}
+        `;
+
+        return {
+            scheduleId,
+            trainId: schedule.trainId,
+            bookingId,
+            confirmedSeats: seats.map(s => ({
+                seatId: s.seatId,
+                seatNumber: s.seatNumber,
+                status: 'BOOKED',
+            })),
+            counts: {
+                available: schedule.available,
+                locked: schedule.locked - seats.length,
+                booked: schedule.booked + seats.length,
+            },
+        }
+
+       },{timeout: 1000}) 
+    });
+
+    //publish event to kafka
+    return result;
+}
+
+const cancelBookingService = async(scheduleId,bookingId,userId)=>{
+    const result = await retryTransactrion(async()=>{
+        return prisma.$transaction(async(tx)=>{
+            const segmentLocks = await tx.seatSegmentLock.findMany(
+                {
+                    where:{scheduId,bookingId,status: 'BOOKED'}
+                }
+            )
+            if(segmentLocks.length>0){
+                await tx.$executeRaw`
+                    DELETE FROM seat_segment_locks
+                    WHERE "scheduleId" = ${scheduleId}
+                    AND "bookingId" = ${bookingId}
+                `
+
+                const affectedSeatIds = [...new Set(segmentLocks.map(l=> l.seatId))];
+                await recomputeSegmentSeatStatus(tx, scheduleId, affectedSeatIds);
+                const counts = await recountScheduleAggregates(tx,scheduId);
+
+                const schedule = await tx.scheduleInventory.findUnique({
+                    where:{
+                        scheduleId
+                    }
+                })
+                return {
+                    scheduId,
+                    trainId: scheduleId.trainId,
+                    bookingId,
+                    releasedSeats: affectedSeatIds,
+                    counts
+                }
+            }
+
+            const seats = await tx.$queryRaw`
+                    SELECT id, "seatId", "seatNumber", status, "lockedBy"
+                    FROM seat_inventories
+                    WHERE "scheduleId" = ${scheduleId}
+                    AND "bookingId" = ${bookingId}
+                    AND status = 'BOOKED'
+                    FOR UPDATE NOWAIT
+               `;
+
+            if (seats.length === 0) {
+                throw new NotFoundError('No booked seats found for this booking');
+            }
+
+            const seatPkIds = seats.map(s => s.id);
+            await tx.$executeRaw`
+                    UPDATE seat_inventories
+                    SET status = 'AVAILABLE', "lockedBy" = NULL,
+                        "lockedAt" = NULL, "lockExpiresAt" = NULL, "bookingId" = NULL,
+                        version = version + 1, "updatedAt" = NOW()
+                    WHERE id = ANY(${seatPkIds}::text[])
+               `;
+
+            const schedule = await tx.scheduleInventory.findUnique({ where: { scheduleId } });
+
+            await tx.$executeRaw`
+                    UPDATE schedule_inventories
+                    SET available = available + ${seats.length},
+                        booked = booked - ${seats.length},
+                        version = version + 1,
+                        "updatedAt" = NOW()
+                    WHERE "scheduleId" = ${scheduleId}
+               `;
+
+            return {
+                scheduleId,
+                trainId: schedule.trainId,
+                bookingId,
+                releasedSeats: seats.map(s => s.seatId),
+                counts: {
+                    available: schedule.available + seats.length,
+                    locked: schedule.locked,
+                    booked: schedule.booked - seats.length,
+                },
+            };
+        },{timeout: 1000})
+    })
+    //publish event
+    return result;
+}
+
 const unlockSeatsService = async(scheduleId,seatIds,userId,fromSeq,toSeq)=>{
     const result = await retryTransactrion(async()=>{
         return prisma.$transaction(async(tx)=>{
@@ -536,6 +735,30 @@ const unlockSeatsService = async(scheduleId,seatIds,userId,fromSeq,toSeq)=>{
     return result;
 }
 
+const recountAndPublishService = async(scheduleId)=>{
+    const counts = await prisma.$queryRaw`
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'AVAILABLE')::int AS available,
+            COUNT(*) FILTER (WHERE status = 'LOCKED')::int AS locked,
+            COUNT(*) FILTER (WHERE status = 'BOOKED')::int AS booked
+        FROM seat_inventories
+        WHERE "scheduleId" = ${scheduleId}
+    `;
+
+    const {available,locked,booked} = counts[0];
+
+    const schedule = await prisma.scheduleInventory.update({
+        where:{scheduleId},
+        data: {
+             available, locked, booked, version: { increment: 1 }
+        
+        }
+    })
+    //publish event
+
+    return {available,locked,booked};
+};
+
 
 
 
@@ -545,5 +768,8 @@ export default {
     getSceduleService,
     getScheduleSeatsService,
     lockSeatsService,
-    unlockSeatsService
+    confirmSeatsService,
+    cancelBookingService,
+    unlockSeatsService,
+    recountAndPublishService
 }

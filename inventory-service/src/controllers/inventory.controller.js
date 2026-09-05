@@ -1,5 +1,5 @@
 import inventoryService from "../services/inventory.service";
-import { BadRequest } from "../utils/error";
+import { BadRequestError } from "../utils/error";
 
 export const getSchedule = asyncHandler(async(req,res)=>{
     const {scheduleId} = req.params;
@@ -53,6 +53,52 @@ export const lockSeatsController = asyncHnadler(async(req,res)=>{
             lockExpiresAt: result.lockExpiresAt
         }
     })
+})
+
+export const confirmedSeatsController = asyncHandler(async(req,res)=>{
+    const { scheduleId, seatIds, userId, bookingId, fromSeq, toSeq } = req.body;
+
+    if(!scheduleId || !seatIds || !Array.isArray(seatIds) || seatIds.length === 0){
+        throw new BadRequestError('scheduleId, seatIds (non-empty array), and bookingId are required');
+    }
+    if(!bookingId){
+        throw new BadRequestError('bookingId is required');
+    }
+    if(!userId){
+        throw new BadRequestError('userId is required');
+    }
+
+    const result = await inventoryService.confirmSeatsService(scheduleId, seatIds, userId, bookingId, fromSeq, toSeq);
+
+    res.status(200).json({
+        success: true,
+        message: `${result.confirmedSeats.length} seats confirmed`,
+        data: {
+            scheduleId: result.scheduleId,
+            bookingId: result.bookingId,
+            confirmedSeats: result.confirmedSeats,
+        },
+    })
+})
+
+export const cancelBookingController = asyncHandler(async(req,res)=>{
+    const {scheduleId,bookingId,userId} = req.body;
+    if (!scheduleId || !bookingId){
+        throw new BadRequestError('scheduleId and bookingId are required');
+    }
+    if(!userId){
+        throw new BadRequestError('userId is required');
+    }
+    const result = await inventoryService.cancelBookingService(scheduleId,bookingId);
+    res.status(200).json({
+        success: true,
+        message: `Booking cancelled, ${result.releasedSeats.length} seat(s) released`,
+        data: {
+            scheduleId: result.scheduleId,
+            bookingId: result.bookingId,
+            releasedSeats: result.releasedSeats,
+        },
+    });
 })
 
 export const unlockSeatsController = asyncHandler(async(req,res)=>{
