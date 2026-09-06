@@ -10,50 +10,52 @@ export const setHeader = (res,capacity,remaining,retryAfter)=>{
     if(retryAfter>0) res.setHeader('Retry-After',retryAfter);
 }
 
-export const ipRateLimit = ()=>{
-    return async (req,res,error)=>{
+export const ipRateLimit = () => {
+    return async (req, res, next) => {
         const mode = getActiveMode();
-        const { capacity, refillPerSec } = tiers[mode];
-        const ip = req.ip || req.connection.remoteAddress;
+        const { capacity, refillPerSec } = tiers.ip[mode];
+        const ip = req.ip || req.connection?.remoteAddress || '127.0.0.1';
 
-        const result = await consume(RedisKey.ipRateLimit(mode,ip),capacity,refillPerSec,{
-            failOpen: failOpen.default
-        })
-        setHeader(res,capacity,result.remaining,result.retryAfter);
-        if(!result.allowed){
+        const result = await consume(RedisKey.ipRateLimit(mode, ip), capacity, refillPerSec, {
+            failOpen: failOpen.default,
+        });
+        setHeader(res, capacity, result.remaining, result.retryAfter);
+        if (!result.allowed) {
             logger.warn(`IP rate limit exceeded ip=${ip} mode=${mode}`);
             return next(
                 new TooManyRequestsError(
                     `Too many requests. Please try again in ${result.retryAfter} seconds`,
                     result.retryAfter
                 )
-            )
+            );
         }
         next();
-    }
-}
+    };
+};
 
-export const userRateLimit = ()=>{
-    if(!req.user || !req.user.id) return next();
+export const userRateLimit = () => {
+    return async (req, res, next) => {
+        if (!req.user || !req.user.id) return next();
 
-    const mode = getActiveMode();
-    const {capacity,refillPerSec} = tiers[mode];
-    const result = await consume(RedisKey.userRateLimit(mode,req.user.id),capacity,refillPerSec,{
-        failOpen: failOpen.default
-    });
-    setHeader(res,capacity,result.remaining,result.retryAfter);
+        const mode = getActiveMode();
+        const { capacity, refillPerSec } = tiers.user[mode];
+        const result = await consume(RedisKey.userRateLimit(mode, req.user.id), capacity, refillPerSec, {
+            failOpen: failOpen.default,
+        });
+        setHeader(res, capacity, result.remaining, result.retryAfter);
 
-    if(!result.allowed){
-        logger.warn(`User rate limit exceeded user=${req.user.id} mode=${mode}`);
-        return next(
-            new TooManyRequestsError(
-                `Too many requests. Please try again in ${result.retryAfter} seconds`,
-                result.retryAfter
-            )
-        )
-    }
-    next();
-}
+        if (!result.allowed) {
+            logger.warn(`User rate limit exceeded user=${req.user.id} mode=${mode}`);
+            return next(
+                new TooManyRequestsError(
+                    `Too many requests. Please try again in ${result.retryAfter} seconds`,
+                    result.retryAfter
+                )
+            );
+        }
+        next();
+    };
+};
 
 export const endpointRateLimit = (tierName,keyFn)=>{
     const tierConfig = tiers.endpoint[tierName];

@@ -20,7 +20,6 @@ export class CircuitBreaker {
                     `Service ${this.serviceName} is temporarily unavailable. Circuit breaker is OPEN.`
                 );
             }
-            // Try to close the circuit
             this.state = CircuitBreakerState.HALF_OPEN;
             logger.info(`Circuit breaker HALF_OPEN for ${this.serviceName}`);
         }
@@ -64,49 +63,52 @@ export class CircuitBreaker {
     }
 }
 
-// Circuit breakers for each service
 export const circuitBreakers = {
     userService: new CircuitBreaker('user-service'),
+    adminService: new CircuitBreaker('admin-service'),
+    searchService: new CircuitBreaker('search-service'),
+    inventoryService: new CircuitBreaker('inventory-service'),
+    bookingService: new CircuitBreaker('booking-service'),
+    paymentService: new CircuitBreaker('payment-service'),
 };
 
 
-/**
- * Forward request to downstream service
- */
-export async function forwardRequest(serviceUrl, path, method, data, headers, circuitBreaker) {
+
+export async function forwardRequest(serviceUrl, path, method, data, headers, circuitBreaker, rawBody = null) {
     const url = `${serviceUrl}${path}`;
-    logger.info(url);
-    // http://localhost:4001/auth/login
+    logger.info(`Proxying to: ${method} ${url}`);
+
+    const forwardedHeaders = {
+        ...headers,
+        'x-internal-service-key': config.INTERNAL_SERVICE_KEY,
+        host: undefined,
+        'content-length': undefined,
+    };
+
     const requestConfig = {
         method,
         url,
         timeout: config.SERVICE_TIMEOUT_MS,
-        headers: {
-            ...headers,
-            // Remove host header to avoid conflicts
-            host: undefined,
-            // Remove content-length to let axios recalculate
-            'content-length': undefined,
-        },
-        // Important: Don't validate status, let service response through
+        headers: forwardedHeaders,
         validateStatus: () => true,
-        // Set max redirects
         maxRedirects: 5,
     };
 
-    // Add data based on method
-    if (method !== 'GET' && method !== 'DELETE' && data) {
-        requestConfig.data = data;
+    if (method !== 'GET' && method !== 'DELETE') {
+        if (rawBody && Buffer.isBuffer(rawBody)) {
+            requestConfig.data = rawBody;
+        } else if (data) {
+            requestConfig.data = data;
+        }
     }
 
-    // For GET and DELETE, add params if data exists
     if ((method === 'GET' || method === 'DELETE') && data) {
         requestConfig.params = data;
     }
 
     logger.debug(`Forwarding ${method} ${url}`, {
         headers: requestConfig.headers,
-        hasData: !!data,
+        hasData: !!requestConfig.data,
         timeout: config.SERVICE_TIMEOUT_MS,
     });
 
@@ -153,16 +155,12 @@ export async function forwardRequest(serviceUrl, path, method, data, headers, ci
             };
         }
 
-        // Network error or service down--You would have seen this in video
         logger.error(`Network error while calling ${serviceUrl}:`, err.message);
         throw new ServiceUnavailableError(`Service temporarily unavailable: ${err.message}`);
     }
 }
 
-/**
- * Proxy middleware factory
- */
-export function createProxy(serviceName, serviceUrl) {
+export function createProxy(serviceName, serviceUrl, options = { stripPrefix: true }) {
     const circuitBreaker = circuitBreakers[serviceName];
 
     if (!circuitBreaker) {
@@ -171,27 +169,31 @@ export function createProxy(serviceName, serviceUrl) {
 
     return async (req, res, next) => {
         try {
-            // Extract path (remove /api prefix only)
-            // Gateway: /api/users/auth/login -> Service: /auth/login
-            // Gateway: /api/users/user/profile -> Service: /user/profile
-            logger.info(req.path);
-            const pathParts = req.path.split('/').filter(Boolean);
-            logger.info(pathParts);
-            // Remove 'users' (first part), keep the rest
-            // ['users', 'auth', 'login'] -> ['auth', 'login'] -> '/auth/login'
-            const servicePath = '/' + pathParts.slice(1).join('/');
-            logger.info(servicePath);
+            let servicePath;
+            if (options.stripPrefix) {
+                const pathParts = req.path.split('/').filter(Boolean);
+                servicePath = '/' + pathParts.slice(1).join('/');
+            } else {
+                servicePath = req.path;
+            }
+
+            if (!servicePath.startsWith('/')) {
+                servicePath = '/' + servicePath;
+            }
+
+            const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+            const fullTargetUrlPath = servicePath + queryString;
 
             const result = await forwardRequest(
                 serviceUrl,
-                servicePath + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''),
+                fullTargetUrlPath,
                 req.method,
                 req.body,
                 req.headers,
-                circuitBreaker
+                circuitBreaker,
+                req.rawBody
             );
 
-            // Forward response headers (except some)
             const excludeHeaders = ['connection', 'keep-alive', 'transfer-encoding', 'host'];
             Object.keys(result.headers).forEach((key) => {
                 if (!excludeHeaders.includes(key.toLowerCase())) {
@@ -199,7 +201,6 @@ export function createProxy(serviceName, serviceUrl) {
                 }
             });
 
-            // Send response
             res.status(result.status).json(result.data);
         } catch (err) {
             next(err);
@@ -207,9 +208,7 @@ export function createProxy(serviceName, serviceUrl) {
     };
 }
 
-/**
- * Health check endpoint for circuit breakers
- */
+
 export function getCircuitBreakerStatus() {
     return Object.values(circuitBreakers).map((cb) => cb.getState());
 }

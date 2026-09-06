@@ -178,9 +178,13 @@ services:
       ALLOWED_ORIGINS: "*"
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
       USER_SERVICE_URL: http://user-service:8080
-      BOOKING_SERVICE_URL: http://booking-service:4008
+      ADMIN_SERVICE_URL: http://admine-pannel:6123
       SEARCH_SERVICE_URL: http://search-service:4002
+      INVENTORY_SERVICE_URL: http://inventory-service:4005
+      BOOKING_SERVICE_URL: http://booking-service:4008
+      PAYMENT_SERVICE_URL: http://payment-service:4011
     depends_on:
       redis:
         condition: service_healthy

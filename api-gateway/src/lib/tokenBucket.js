@@ -56,7 +56,7 @@ setInterval(()=>{
     }
 },5000);
 
-export async const consume = (key,capacity,refillPerSec,opts={})=>{
+export const consume = async (key, capacity, refillPerSec, opts = {}) => {
     const cost = opts.cost || 1;
     const failOpen = opts.failOpen !== undefined ?opts.failOpen : true;
 
@@ -97,7 +97,7 @@ export async const consume = (key,capacity,refillPerSec,opts={})=>{
             retryAfter: Number(retryAfter)
         }
     } catch (error) {
-        logger.error(`tokenBucket error for key=${key}:`, err.message);
+        logger.error(`tokenBucket error for key=${key}:`, error.message);
 
         if(failOpen){
             return {allowed: true, remaining: capacity,retryAfter: 0,degraded: true}

@@ -4,7 +4,7 @@ const TATKAL_WINDOWS = [
 ]
 
 export const getActiveMode = (now = new Date())=>{
-    const h = now.getHour();
+    const h = now.getHours();
     const m = now.getMinutes();
     const currentMinutes = h*60 + m;
 

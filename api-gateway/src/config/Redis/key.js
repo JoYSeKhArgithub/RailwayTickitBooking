@@ -5,6 +5,6 @@ export const RedisKey = {
     queueKey: (name)=>`queue:${name}`,
     memberKey: (name,id)=>`queue:${name}:member:${id}`,
     queueToken: (name,userId)=> `queue:${name}:token:${userId}`,
-    queueBookingUserId: (userId)=>`queue:booking:${userId}`,
+    queueBookingUserId: (userId)=>`queue:booking:token:${userId}`,
     queueBooking: ()=> `queue:booking`
 }
