@@ -159,6 +159,25 @@ const rollbackHoldSeats = async (bookingRecord, seatIdList) => {
     }
 };
 
+const rollbackConfirmSeats = async (bookingRecord)=>{
+    try{
+        await inventoryClient.cancelBooking(bookingRecord.scheduleId,bookingRecord.id,bookingRecord.userId);
+        await prisma.sagaLog.updateMany({
+            where: {
+                bookingId: bookingRecord.id,
+                step: 'CONFIRM_SEATS', status: 'COMPLETED'
+            },
+            data: {
+                status: 'COMPENSATED'
+            }
+        })
+    }catch(error){
+        logger.error(`Failed to compensate CONFIRM_SEATS for booking ${booking.id}`, {
+               error: error.message,
+          });
+    }
+}
+
 const rollbackAll = async (bookingRecord, seatIdList) => {
     const completeSteps = await prisma.sagaLog.findMany({
         where: {
@@ -177,6 +196,9 @@ const rollbackAll = async (bookingRecord, seatIdList) => {
                 break;
             case 'HOLD_SEATS':
                 await rollbackHoldSeats(bookingRecord, seatIdList);
+                break;
+            case 'CONFIRM_SEATS':
+                await rollbackConfirmSeats(bookingRecord);
                 break;
         }
     }
@@ -245,6 +267,7 @@ const sagaService = {
     compensateHoldSeats,
     compensateCreatePayment,
     compensateAll,
+    rollbackConfirmSeats
 };
 
 export {
@@ -259,6 +282,7 @@ export {
     compensateHoldSeats,
     compensateCreatePayment,
     compensateAll,
+    rollbackConfirmSeats
 };
 
 export default sagaService;
