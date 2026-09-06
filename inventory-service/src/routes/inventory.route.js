@@ -7,12 +7,15 @@ import {
     confirmedSeatsController,
     unlockSeatsController
 } from '../controllers/inventory.controller.js';
+import { authMiddleware } from '../middlewares/auth.middleware.js';
+
 const router = express.Router();
 
 router.route('/schedules/:scheduleId/availability').get(getSchedule);
-router.route('/schedules/:scheduleId/seats').get(getScheduleSeats);
-router.route('/seats/lock').post(lockSeatsController);
-router.route('/seats/unlock').post(unlockSeatsController);
-router.route('/seats/confirm').post(confirmedSeatsController);
-router.route('/seats/cancel-booking').post(cancelBookingController)
+router.route('/schedules/:scheduleId/seats').get(authMiddleware,getScheduleSeats);
+router.route('/seats/lock').post(authMiddleware, lockSeatsController);
+router.route('/seats/unlock').post(authMiddleware, unlockSeatsController);
+router.route('/seats/confirm').post(authMiddleware, confirmedSeatsController);
+router.route('/seats/cancel-booking').post(authMiddleware, cancelBookingController);
+
 export default router;

@@ -24,10 +24,12 @@ export const authMiddleware = (req, res, next) => {
             throw new UnauthorizedError('Invalid access token');
         }
         req.user = {
-            id: payload.id
+            id: payload.id,
+            role: payload.role || 'USER'
         };
 
         req.headers['x-user-id'] = payload.id.toString();
+        req.headers['x-user-role'] = req.user.role;
         logger.debug(`User ${payload.id} authenticated successfully`);
         next();
 

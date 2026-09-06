@@ -4,7 +4,7 @@ import { AllStationController, AllTrainController, AutoComplteStationConstroller
 const router = express.Router();
 
 router.route('/trains').get(searchController);
-router.route('/serch-auto').get(AutoComplteStationConstroller);
+router.route('/autocomplete').get(AutoComplteStationConstroller);
 router.route('/getStations').get(AllStationController);
 router.route('/getTrains').get(AllTrainController);
 

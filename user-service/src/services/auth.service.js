@@ -94,7 +94,7 @@ const login = async(email,password,deviceId,ipAddress)=>{
         throw new UnauthorizedError("Invalid email account configuration or password entry", "INVALID_CREDENTIALS")
     }
 
-    const accessToken = generateAccessToken(existingUser.id);
+    const accessToken = generateAccessToken(existingUser.id, existingUser.role);
     const refreshToken = generateRefreshToken(existingUser.id);
 
     const {jti,exp} = jwt.decode(refreshToken);
@@ -141,7 +141,8 @@ const rotateRefreshToken = async(refreshToken,deviceId,ipAddress)=>{
         throw new ForbiddenError("Token state duplication triggered anomaly protections.", "LOGIN_AGAIN");
     }
 
-    const newAccessToken = generateAccessToken(userId);
+    const userRecord = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const newAccessToken = generateAccessToken(userId, userRecord?.role || 'USER');
     const newRefreshToken = generateRefreshToken(userId);
     const { jti: newJti, exp: newExp } = jwt.decode(newRefreshToken);
 

@@ -61,7 +61,7 @@ export const stationClient = {
         if (cached) return cached;
 
         const station = await withRetry(async () => {
-            const { data } = await client.get(`/station/internal/${stationId}`);
+            const { data } = await client.get(`/stations/station/internal/${stationId}`);
             return data.data;
         });
 

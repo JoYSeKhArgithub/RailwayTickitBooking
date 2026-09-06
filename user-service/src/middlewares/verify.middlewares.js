@@ -9,6 +9,9 @@ export const userVerify = (req,res,next)=>{
         )
     }
     
-    req.user = {id: userId};
+    req.user = {
+        id: userId,
+        role: req.headers['x-user-role'] || 'USER'
+    };
     next();
 }

@@ -13,7 +13,7 @@ const client = axios.create({
 
 const withRetry = async (fn, maxRetries = 3) => {
     let lastError;
-    for (let attempt = 1; attempt <= maxRetries; i++) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             return await fn();
         } catch (error) {

@@ -39,7 +39,8 @@ app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-app.use('/search',searchRouter)
+app.use('/', searchRouter);
+app.use('/search', searchRouter);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: config.SERVICE_NAME }));
 app.use(errorMiddleware);

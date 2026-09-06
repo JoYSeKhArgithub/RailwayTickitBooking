@@ -30,8 +30,9 @@ app.get("/health",(req,res)=>{
     })
 })
 
-app.use('/ttb/api', authenticationRouter);
-app.use('/ttb/api', userRouter);
+app.use('/', authenticationRouter);
+app.use('/', userRouter);
+
 
 app.use(errorMiddleware);
 

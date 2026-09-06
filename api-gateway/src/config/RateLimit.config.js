@@ -26,6 +26,8 @@ export const tiers = {
         tatkal: { capacity: 6, refillPerSec: 0.1 }
     },
     endpoint: {
+        captcha: { capacity: 60, refillPerSec: 1 },
+        signup: { capacity: 5, refillPerSec: 5 / 3600 },
         otpSend: { capacity: 5, refillPerSec: 5 / 3600 },             
         otpVerify: { capacity: 10, refillPerSec: 10 / 3600 },         
         login: { capacity: 100, refillPerSec: 100 / 900 },            
