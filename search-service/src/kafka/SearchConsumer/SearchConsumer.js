@@ -28,7 +28,7 @@ export class SearchConsumer {
                 kafkaTpoics.ROUTE_CREATED,
                 kafkaTpoics.SCHEDULE_CREATED,
                 kafkaTpoics.SCHEDULE_CANCELLED,
-                // Seat available Topic also Important
+                kafkaTpoics.SEAT_AVAILABILITY_UPDATED,
             ],
             fromBeginning: true,
         });
@@ -59,6 +59,9 @@ export class SearchConsumer {
                             break;
                         case kafkaTpoics.SCHEDULE_CANCELLED:
                             await this.searchService.cancelIndexTrainSchedule(parsedValue);
+                            break;
+                        case kafkaTpoics.SEAT_AVAILABILITY_UPDATED:
+                            await this.searchService.updateSeatAvailability(parsedValue);
                             break;
                         default:
                             this.logger.warn(`Unknown topic: ${topic}`);

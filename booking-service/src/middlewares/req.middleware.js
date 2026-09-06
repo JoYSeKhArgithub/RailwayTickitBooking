@@ -1,7 +1,6 @@
-import { logger } from "../config/logger.js"
+import { logger } from '../config/logger.js';
 
-export const reqMiddleware = (req,res,next)=>{
-    logger.debug(`[${req.method}] ${req.originalUrl}`);
+export const reqLogger = (req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
@@ -10,4 +9,7 @@ export const reqMiddleware = (req,res,next)=>{
         );
     });
     next();
-}
+};
+
+export const reqMiddleware = reqLogger;
+export default reqLogger;

@@ -8,6 +8,8 @@ export const config = {
     DATABASE_URL: process.env.DATABASE_URL,
     ALLOW_ORIGIN: process.env.ALLOW_ORIGIN,
     REDIS_URL: process.env.REDIS_URL,
+    KAFKA_BROKER: process.env.KAFKA_BROKER || 'localhost:9093',
+    KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID || 'user-service',
 
 
     OTP_TTL: process.env.OTP_TTL || 300,

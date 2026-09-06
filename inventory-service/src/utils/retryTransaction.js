@@ -1,20 +1,24 @@
-export const retryTransactrion = async(fn,maxRetries = 3)=>{
-    for(let attempt = 1; attempt<=maxRetries;i++){
+export const retryTransaction = async (operationFn, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            return await fn();
-        } catch (error) {
-            const isRetryable = 
-                error.code === 'P2034' ||
-                error.message?.includes('could not serialize') ||
-                error.message?.includes('could not obtain lock') ||
-                error.message?.includes('deadlock detected');
+            return await operationFn();
+        } catch (opError) {
+            const isRetryable =
+                opError.code === 'P2034' ||
+                opError.message?.includes('could not serialize') ||
+                opError.message?.includes('could not obtain lock') ||
+                opError.message?.includes('deadlock detected');
 
-                if(isRetryable && attempt<maxRetries){
-                    const delay = 50* attempt;
-                    await new Promise(r=> setTimeout(r,delay));
-                    continue;
-                }
-                throw error;
+            if (isRetryable && attempt < maxRetries) {
+                const delayMs = 50 * attempt;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+                continue;
+            }
+            throw opError;
         }
     }
-}
+};
+
+export const retryTransactrion = retryTransaction;
+
+export default retryTransaction;

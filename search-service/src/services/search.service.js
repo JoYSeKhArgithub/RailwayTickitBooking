@@ -176,6 +176,42 @@ const cancelIndexTrainSchedule = async (event) => {
     }
 };
 
+const updateSeatAvailability = async (eventData) => {
+    const data = eventData?.data || eventData || {};
+    const { scheduleId, trainId, available, locked, booked } = data;
+    if (!trainId || !scheduleId) return;
+
+    try {
+        await esClient.update({
+            index: TRAIN_INDEX,
+            id: trainId,
+            script: {
+                source: `
+                    if (ctx._source.schedules != null) {
+                        for (def s : ctx._source.schedules) {
+                            if (s.scheduleId == params.scheduleId) {
+                                s.available = params.available;
+                                s.locked = params.locked;
+                                s.booked = params.booked;
+                            }
+                        }
+                    }
+                `,
+                params: {
+                    scheduleId,
+                    available: Number(available) || 0,
+                    locked: Number(locked) || 0,
+                    booked: Number(booked) || 0,
+                },
+            },
+            refresh: true,
+        });
+        logger.info(`Updated seat availability in search index for schedule ${scheduleId} (available: ${available})`);
+    } catch (err) {
+        logger.warn(`Could not update seat availability for schedule ${scheduleId}: ${err.message}`);
+    }
+};
+
 const searchTrainService = async(from,to,date)=>{
     const fromStation = await resolveStation(from);
     const destinationStation = await resolveStation(to);
@@ -358,6 +394,7 @@ export default {
     indexTrainRoute,
     indexTrainSchedule,
     cancelIndexTrainSchedule,
+    updateSeatAvailability,
     searchTrainService,
     getAlllStations,
     getAllTrains,

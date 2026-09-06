@@ -1,9 +1,9 @@
 import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
 import { config } from "../config/root.js";
-import { inventroyProducer } from "../kafka/inventoryProducer.js";
+import { inventoryProducer, inventroyProducer } from "../kafka/inventoryProducer/index.js";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../utils/error.js";
-import { retryTransactrion } from "../utils/retryTransaction.js";
+import { retryTransaction, retryTransactrion } from "../utils/retryTransaction.js";
 
 const recomputeSegmentSeatStatus = async (tx, scheduleId, seatIds)=>{
     const statusChanges = {nowAvailable: 0,nowOccupied: 0,lockedToBooked: 0,bookedToLocked: 0};
@@ -76,12 +76,13 @@ const recountScheduleAggregates = async(tx,scheduleId)=>{
 }
 
 const initializeInventory = async(eventData)=>{
-    const {scheduleId, trainId,trainNumber,trainName,departureDate,seats} = eventData;
+    const data = eventData?.data || eventData || {};
+    const {scheduleId, trainId, trainNumber, trainName, departureDate, seats, route} = data;
     if(!scheduleId || !seats || !seats.length){
-        logger.warn('Invalide scheduleId or in the schedule seats are missing');
+        logger.warn('Invalid scheduleId or in the schedule seats are missing');
         return;
     }
-    const eventKey = `SCEDULE_CREATED-${scheduleId}`;
+    const eventKey = `SCHEDULE_CREATED-${scheduleId}`;
     const exist = await prisma.idempotencyRecord.findUnique({
         where:{
             eventKey
@@ -104,13 +105,13 @@ const initializeInventory = async(eventData)=>{
                 totalSeats,
                 available: totalSeats,
                 locked: 0,
-                blocked: 0,
+                booked: 0,
                 status: 'ACTIVE'
             }
         })
 
-        const seatData =seats.map((seat)=>({
-            scheduleInventoryId: schedule.id,
+        const seatData = seats.map((seat)=>({
+            scheduleInvetoryId: schedule.id,
             scheduleId,
             seatId: seat.seatId,
             seatNumber: seat.seatNumber,
@@ -123,8 +124,8 @@ const initializeInventory = async(eventData)=>{
             data: seatData
         });
 
-        if(eventData.route && eventData.route.length>0){
-            const routeStop = eventData.route.map(rs=>({
+        if(route && route.length > 0){
+            const routeStop = route.map(rs=>({
                 scheduleId,
                 stationId: rs.stationId,
                 stationName: rs.stationName,
@@ -146,7 +147,7 @@ const initializeInventory = async(eventData)=>{
     try{
         await inventroyProducer.publishSeatAvailabilityUpdated(scheduleId,trainId,totalSeats,0,0);
     }catch(err){
-        logger.error('Failed to publish initial availability event after retries', { scheduleId, error: error.message });
+        logger.error('Failed to publish initial availability event after retries', { scheduleId, error: err.message });
     }
 }
 
@@ -191,17 +192,17 @@ const cancelScheduleInventory= async(eventData)=>{
 
         await tx.seatInventory.updateMany({
             where: {
-                scheuleId
+                scheduleId
             },
             data:{
                 status: 'CANCELLED',
             }
         });
-        await tx.idempotencyRecord.craete({data: {eventKey}})
+        await tx.idempotencyRecord.create({data: {eventKey}})
     });
     logger.info('Inventory cancelled successfully');
     try {
-        await inventoryProducer.publishSeatAvailabilityUpdated(scheduleId, schedule.trainId, 0, 0, 0);
+        await inventoryProducer.publishSeatAvailabilityUpdated(scheduleId, dataSchedule.trainId, 0, 0, 0);
     } catch (error) {
         logger.error('Failed to publish seat availability after retries')
     }
@@ -351,19 +352,19 @@ const lockSeatsService = async (scheduleId, seatIds, userId,ttlSec,fromSeq,toSeq
                     )
                 }
 
-                for(seat of seats){
+                for (const seat of seats) {
                     await tx.seatSegmentLock.create({
-                        data:{
-                            scheduId,
+                        data: {
+                            scheduleId,
                             seatId: seat.seatId,
                             fromSeq,
                             toSeq,
                             status: 'LOCKED',
                             lockedBy: userId,
                             lockedAt: new Date(),
-                            lockExpiresAt
-                        }
-                    })
+                            lockedExpiresAt: lockExpiresAt,
+                        },
+                    });
                 }
 
             }else{
@@ -754,15 +755,31 @@ const recountAndPublishService = async(scheduleId)=>{
         
         }
     })
-    //publish event
+    try {
+        await inventoryProducer.publishSeatAvailabilityUpdated(
+            scheduleId,
+            schedule.trainId,
+            available,
+            locked,
+            booked
+        );
+    } catch (publishErr) {
+        logger.warn('Failed to publish seat availability update', {
+            scheduleId,
+            error: publishErr.message,
+        });
+    }
 
-    return {available,locked,booked};
+    return { available, locked, booked };
 };
 
+export const recomputeSegmentSeatStatuses = recomputeSegmentSeatStatus;
+export const recountAndPublish = recountAndPublishService;
 
-
-
-export default {
+export {
+    recomputeSegmentSeatStatus,
+    recomputeSegmentSeatStatuses,
+    recountScheduleAggregates,
     initializeInventory,
     cancelScheduleInventory,
     getSceduleService,
@@ -771,5 +788,24 @@ export default {
     confirmSeatsService,
     cancelBookingService,
     unlockSeatsService,
-    recountAndPublishService
-}
+    recountAndPublishService,
+    recountAndPublish,
+};
+
+const inventoryService = {
+    recomputeSegmentSeatStatus,
+    recomputeSegmentSeatStatuses,
+    recountScheduleAggregates,
+    initializeInventory,
+    cancelScheduleInventory,
+    getSceduleService,
+    getScheduleSeatsService,
+    lockSeatsService,
+    confirmSeatsService,
+    cancelBookingService,
+    unlockSeatsService,
+    recountAndPublishService,
+    recountAndPublish,
+};
+
+export default inventoryService;

@@ -1,11 +1,12 @@
-import { inventoryKafkaProducer } from "../../config/kafka";
-import { InventoryProducer } from "./inventoryProducer";
+import { inventoryKafkaProducer } from "../../config/kafka.js";
+import { InventoryProducer } from "./inventoryProducer.js";
 import { logger } from "../../config/logger.js";
 
-export const inventroyProducer = new InventoryProducer({
+export const inventoryProducer = new InventoryProducer({
     producer: inventoryKafkaProducer,
-    logger
-})
+    logger,
+});
 
+export const inventroyProducer = inventoryProducer;
 
-
+export default inventoryProducer;

@@ -17,7 +17,7 @@ export const errorMiddleware = (err,req,res,next)=>{
             message: err.message,
             stack: err.stack,
             path: req.path,
-            metheod: req.metheod,
+            method: req.method,
             body: req.body,
             query: req.query
         })

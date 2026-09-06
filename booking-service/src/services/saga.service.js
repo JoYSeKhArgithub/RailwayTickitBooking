@@ -1,28 +1,30 @@
-import { prisma } from "../config/prisma.js"
-import { invenToryClient } from "./inventoryClient.service"
+import { prisma } from "../config/prisma.js";
+import { logger } from "../config/logger.js";
+import { inventoryClient } from "./inventoryClient.service.js";
 import { paymentClient } from "./paymentClient.service.js";
 
-const sagaHoldSeats = async(booking,seatIds,ttlSec,fromSeq,toSeq)=>{
-    const sagaLog = await prisma.sagaLog.create({
-        data:{
-            bookingId: booking.id,
+const sagaHoldSeats = async (bookingRecord, seatIdList, ttlSec, fromSeq, toSeq) => {
+    const sagaLogRecord = await prisma.sagaLog.create({
+        data: {
+            bookingId: bookingRecord.id,
             step: 'HOLD_SEATS',
             status: 'PENDING',
             request: {
-                scheduleId: booking.scheduleId,
-                seatIds,
-                userId: booking.userId,
+                scheduleId: bookingRecord.scheduleId,
+                seatIds: seatIdList,
+                userId: bookingRecord.userId,
                 ttlSec,
                 fromSeq,
-                toSeq
-            }
-        }
-    })
+                toSeq,
+            },
+        },
+    });
 
     try {
-        const result = await invenToryClient.holdSeats(
-            booking.scheduleId,
-            seatIds,booking.userId,
+        const holdResult = await inventoryClient.holdSeats(
+            bookingRecord.scheduleId,
+            seatIdList,
+            bookingRecord.userId,
             ttlSec,
             fromSeq,
             toSeq
@@ -30,158 +32,233 @@ const sagaHoldSeats = async(booking,seatIds,ttlSec,fromSeq,toSeq)=>{
 
         await prisma.sagaLog.update({
             where: {
-                id: booking.id
+                id: sagaLogRecord.id,
             },
             data: {
                 status: 'COMPLETED',
-                response: result
-            }
-        })
+                response: holdResult,
+            },
+        });
 
         await prisma.booking.update({
-            where: {id: booking.id},
+            where: { id: bookingRecord.id },
             data: {
-                status:'SEAT_HELD'
-            }
+                status: 'SEATS_HELD',
+            },
         });
-        logger.info(`Saga HOLD_SEATS completed for booking ${booking.id}`);
-        return result;
-    } catch (error) {
-        const errorMsg = error.response?.data?.message || error.message;
+        logger.info(`Saga HOLD_SEATS completed for booking ${bookingRecord.id}`);
+        return holdResult;
+    } catch (holdError) {
+        const errorMsg = holdError.response?.data?.message || holdError.message;
         await prisma.sagaLog.update({
             where: {
-                id: booking.id
+                id: sagaLogRecord.id,
             },
             data: {
                 status: 'FAILED',
-                error: errorMsg
-            }
+                error: errorMsg,
+            },
         });
-        throw error;
+        throw holdError;
     }
-},
+};
 
-const sagaCreatePaymentOrder = async(booking)=>{
-    const idempotencyKey = `${booking.id}-paymentorder`;
-    const sagaLog = await prisma.sagaLog.create({
-        data:{
-            bookingId: booking.id,
+const sagaCreatePaymentOrder = async (bookingRecord) => {
+    const idempotencyKey = `${bookingRecord.id}-paymentorder`;
+    const sagaLogRecord = await prisma.sagaLog.create({
+        data: {
+            bookingId: bookingRecord.id,
             step: 'CREATE_PAYMENT',
             status: 'PENDING',
             request: {
-                bookingId: booking.id,
-                amount: booking.totalAmount,
-                userId: booking.userId
-            }
-        }
-    })
+                bookingId: bookingRecord.id,
+                amount: bookingRecord.totalAmount,
+                userId: bookingRecord.userId,
+            },
+        },
+    });
     try {
-        const result = await paymentClient.createPaymentOrder(
-            booking.id,
-            booking.totalAmount,
-            booking.userId,
+        const orderResult = await paymentClient.createPaymentOrder(
+            bookingRecord.id,
+            bookingRecord.totalAmount,
+            bookingRecord.userId,
             idempotencyKey
-        )
+        );
 
         await prisma.sagaLog.update({
             where: {
-                id: sagaLog.id
+                id: sagaLogRecord.id,
             },
             data: {
                 status: 'COMPLETED',
-                response: result
-            }
-        })
+                response: orderResult,
+            },
+        });
 
         await prisma.booking.update({
-            where: {id: booking.id},
-            data:{
+            where: { id: bookingRecord.id },
+            data: {
                 status: 'PAYMENT_PENDING',
-                paymentOrderId: result.paymentOrderId,
-            }
+                paymentOrderId: orderResult.paymentOrderId,
+            },
         });
-        logger.info(`Saga CREATE_PAYMENT completed for booking ${booking.id}`);
-        return result;
-    } catch (error) {
-        const errorMsg = error.response?.data?.message || error.message;
+        logger.info(`Saga CREATE_PAYMENT completed for booking ${bookingRecord.id}`);
+        return orderResult;
+    } catch (orderError) {
+        const errorMsg = orderError.response?.data?.message || orderError.message;
         await prisma.sagaLog.update({
-            where: { id: sagaLog.id },
+            where: { id: sagaLogRecord.id },
             data: { status: 'FAILED', error: errorMsg },
         });
-        throw error;
+        throw orderError;
     }
-}
+};
 
+const rollbackCreatePayment = async (bookingRecord) => {
+    if (!bookingRecord.paymentOrderId) return;
 
-const rollbackCreatePayment = async (booking) => {
-    if (!booking.paymentOrderId) return;
-
-    logger.info(`Compensating CREATE_PAYMENT for booking ${booking.id}`);
+    logger.info(`Compensating CREATE_PAYMENT for booking ${bookingRecord.id}`);
     try {
-        const idempotencyKey = `${booking.id}-refund-compensation`;
+        const idempotencyKey = `${bookingRecord.id}-refund-compensation`;
         await paymentClient.initiateRefund(
-            booking.paymentOrderId,
-            booking.totalAmount,
+            bookingRecord.paymentOrderId,
+            bookingRecord.totalAmount,
             'booking_compensation',
             idempotencyKey
         );
 
         await prisma.sagaLog.updateMany({
-            where: { bookingId: booking.id, step: 'CREATE_PAYMENT', status: 'COMPLETED' },
+            where: { bookingId: bookingRecord.id, step: 'CREATE_PAYMENT', status: 'COMPLETED' },
             data: { status: 'COMPENSATED' },
         });
-    } catch (error) {
-        logger.error(`Failed to compensate CREATE_PAYMENT for booking ${booking.id}`, {
-            error: error.message,
+    } catch (refundCompensationError) {
+        logger.error(`Failed to compensate CREATE_PAYMENT for booking ${bookingRecord.id}`, {
+            error: refundCompensationError.message,
         });
     }
-}
+};
 
-const rollbackHoldSeats = async () => {
-    logger.info(`Compensating HOLD_SEATS for booking ${booking.id}`);
+const rollbackHoldSeats = async (bookingRecord, seatIdList) => {
+    logger.info(`Compensating HOLD_SEATS for booking ${bookingRecord.id}`);
     try {
-        await inventoryClient.releaseSeats(booking.scheduleId, seatIds, booking.userId, booking.fromSeq, booking.toSeq);
+        await inventoryClient.releaseSeats(
+            bookingRecord.scheduleId,
+            seatIdList,
+            bookingRecord.userId,
+            bookingRecord.fromSeq,
+            bookingRecord.toSeq
+        );
         await prisma.sagaLog.updateMany({
-            where: { bookingId: booking.id, step: 'HOLD_SEATS', status: 'COMPLETED' },
+            where: { bookingId: bookingRecord.id, step: 'HOLD_SEATS', status: 'COMPLETED' },
             data: { status: 'COMPENSATED' },
         });
-    } catch (error) {
-        logger.error(`Failed to compensate HOLD_SEATS for booking ${booking.id}`, {
-            error: error.message,
+    } catch (releaseCompensationError) {
+        logger.error(`Failed to compensate HOLD_SEATS for booking ${bookingRecord.id}`, {
+            error: releaseCompensationError.message,
         });
     }
-}
+};
 
-
-
-const rollbackAll = async(bookig,seatIds)=>{
+const rollbackAll = async (bookingRecord, seatIdList) => {
     const completeSteps = await prisma.sagaLog.findMany({
         where: {
-            bookingId: booking.id,
-            status: 'COMPLETED'
+            bookingId: bookingRecord.id,
+            status: 'COMPLETED',
         },
-        orderBy:{
-            createdAt: 'desc'
-        }
+        orderBy: {
+            createdAt: 'desc',
+        },
     });
 
-    for( step of completeSteps){
-        switch(step.step){
+    for (const stepItem of completeSteps) {
+        switch (stepItem.step) {
             case 'CREATE_PAYMENT':
-                await rollbackCreatePayment(booking);
+                await rollbackCreatePayment(bookingRecord);
                 break;
             case 'HOLD_SEATS':
-                await rollbackHoldSeats(booking,seatIds);
+                await rollbackHoldSeats(bookingRecord, seatIdList);
                 break;
         }
     }
+};
 
-}
+const executeConfirmSeats = async (bookingRecord, seatIdList, fromSeq, toSeq) => {
+    const sagaLogRecord = await prisma.sagaLog.create({
+        data: {
+            bookingId: bookingRecord.id,
+            step: 'CONFIRM_SEATS',
+            status: 'PENDING',
+            request: {
+                scheduleId: bookingRecord.scheduleId,
+                seatIds: seatIdList,
+                userId: bookingRecord.userId,
+                fromSeq,
+                toSeq,
+            },
+        },
+    });
 
+    try {
+        const confirmResult = await inventoryClient.confirmSeats(
+            bookingRecord.scheduleId,
+            seatIdList,
+            bookingRecord.userId,
+            fromSeq,
+            toSeq
+        );
 
+        await prisma.sagaLog.update({
+            where: { id: sagaLogRecord.id },
+            data: {
+                status: 'COMPLETED',
+                response: confirmResult,
+            },
+        });
 
-export default {
+        logger.info(`Saga CONFIRM_SEATS completed for booking ${bookingRecord.id}`);
+        return confirmResult;
+    } catch (confirmError) {
+        const errorMsg = confirmError.response?.data?.message || confirmError.message;
+        await prisma.sagaLog.update({
+            where: { id: sagaLogRecord.id },
+            data: { status: 'FAILED', error: errorMsg },
+        });
+        throw confirmError;
+    }
+};
+
+const executeHoldSeats = sagaHoldSeats;
+const executeCreatePayment = sagaCreatePaymentOrder;
+const compensateHoldSeats = rollbackHoldSeats;
+const compensateCreatePayment = rollbackCreatePayment;
+const compensateAll = rollbackAll;
+
+const sagaService = {
     sagaHoldSeats,
     sagaCreatePaymentOrder,
-    rollbackAll
-}
+    executeHoldSeats,
+    executeCreatePayment,
+    executeConfirmSeats,
+    rollbackHoldSeats,
+    rollbackCreatePayment,
+    rollbackAll,
+    compensateHoldSeats,
+    compensateCreatePayment,
+    compensateAll,
+};
+
+export {
+    sagaHoldSeats,
+    sagaCreatePaymentOrder,
+    executeHoldSeats,
+    executeCreatePayment,
+    executeConfirmSeats,
+    rollbackHoldSeats,
+    rollbackCreatePayment,
+    rollbackAll,
+    compensateHoldSeats,
+    compensateCreatePayment,
+    compensateAll,
+};
+
+export default sagaService;

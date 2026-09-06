@@ -10,6 +10,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import jwt from 'jsonwebtoken';
 import { logger } from '../config/logger.js';
 import { generateAndStoreOTP, verifyOTPInner } from '../utils/otp.js';
+import notificationProducer from '../kafka/producer/notification.producer.js';
 
 const generateCaptcha = async()=>{
     const captcha = svgCaptcha.create({ size: 6, noise: 3, color: true, background: '#f5f5f5'});
@@ -44,8 +45,10 @@ const sendOTP = async(registerPayload)=>{
     const transientUser = { firstName, lastName, email, mobile, dob, gender, hashedPassword };
 
     const { otp, otpSessionId } = await generateAndStoreOTP(transientUser);
-    logger.info(`The otp for ${email} is ${otp}`)
-    //Notification consumer call
+    logger.info(`The otp for ${email} is ${otp}`);
+
+    await notificationProducer.sendOtpEmail(email, otp, Math.round((config.OTP_TTL || 300) / 60));
+    logger.info(`OTP email queued for : ${email}`);
 
     return {otpSessionId}
 }
@@ -70,8 +73,11 @@ const verifyOtp = async(otp,otpSessionId)=>{
         }
     })
 
-    // safe user send
     const {password: _,...safeValue} = user;
+
+    await notificationProducer.sendWelcomeEmail(meta.email, meta.firstName);
+    logger.info(`Welcome email queued for ${meta.email}`);
+
     return {safeValue};
 }
 
@@ -156,4 +162,20 @@ const verifyGoogleIdToken = async()=>{
 }
 
 
-export default {generateCaptcha,sendOTP,verifyOtp,login,rotateRefreshToken,verifyGoogleIdToken}
+export {
+    generateCaptcha,
+    sendOTP,
+    verifyOtp,
+    login,
+    rotateRefreshToken,
+    verifyGoogleIdToken,
+};
+
+export default {
+    generateCaptcha,
+    sendOTP,
+    verifyOtp,
+    login,
+    rotateRefreshToken,
+    verifyGoogleIdToken,
+};

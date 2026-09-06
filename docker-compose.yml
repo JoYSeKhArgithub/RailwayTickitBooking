@@ -278,6 +278,8 @@ services:
       LOG_LEVEL: info
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/booking_service_database
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      KAFKA_BROKER: kafka:9092
+      KAFKA_CLIENT_ID: booking-service
       INVENTORY_SERVICE_URL: http://inventory-service:4005
       PAYMENT_SERVICE_URL: http://payment-service:4011
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
@@ -285,6 +287,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
 
   payment-service:

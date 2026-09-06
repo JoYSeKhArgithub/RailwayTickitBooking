@@ -26,7 +26,8 @@
     "pg": "^8.22.0",
     "svg-captcha": "^1.4.0",
     "uuid": "^14.0.1",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

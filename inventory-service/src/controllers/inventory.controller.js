@@ -1,5 +1,6 @@
-import inventoryService from "../services/inventory.service";
-import { BadRequestError } from "../utils/error";
+import inventoryService from "../services/inventory.service.js";
+import { BadRequestError } from "../utils/error.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const getSchedule = asyncHandler(async(req,res)=>{
     const {scheduleId} = req.params;
@@ -26,17 +27,17 @@ export const getScheduleSeats = asyncHandler(async(req,res)=>{
     })
 })
 
-export const lockSeatsController = asyncHnadler(async(req,res)=>{
+export const lockSeatsController = asyncHandler(async(req,res)=>{
     const {scheduleId,seatIds,userId,
                     ttlSec,
                     fromSeq,
                     toSeq} = req.body;
 
     if(!scheduleId || !seatIds || !Array.isArray(seatIds)  || !ttlSec || !fromSeq || !toSeq){
-        throw new BadRequest('The scheuleId ,seatIds , ttlsec , fromSeq, toSeq are mandetory');
+        throw new BadRequestError('The scheduleId, seatIds, ttlSec, fromSeq, toSeq are mandatory');
     }
     if(!userId){
-        throw new BadRequest('userId is required');
+        throw new BadRequestError('userId is required');
     }
 
     const result = await inventoryService.lockSeatsService(scheduleId,seatIds,userId,

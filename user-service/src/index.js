@@ -30,10 +30,10 @@ app.get("/health",(req,res)=>{
     })
 })
 
-app.use(errorMiddleware);
-
 app.use('/ttb/api', authenticationRouter);
 app.use('/ttb/api', userRouter);
+
+app.use(errorMiddleware);
 
 const startServer = async()=>{
     try {
@@ -43,6 +43,10 @@ const startServer = async()=>{
         const shutDown = async()=>{
             logger.info('Shutdown gracefully ')
             server.close(async()=>{
+                try {
+                    const { producer } = await import('./config/kafka.js');
+                    await producer.disconnect();
+                } catch (e) {}
                 logger.info('Server Closed');
                 process.exit(0);
             })

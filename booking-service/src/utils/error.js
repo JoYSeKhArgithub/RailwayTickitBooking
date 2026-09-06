@@ -50,3 +50,10 @@ export class InternalServerError extends AppError {
     }
 }
 
+export class StaleStateError extends AppError {
+    constructor(message = 'Resource was modified by another process', code = 'STALE_STATE') {
+        super(message, 409, code);
+    }
+}
+
+

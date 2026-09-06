@@ -81,5 +81,6 @@ export const paymentClient ={
             return data.data;
         })
     },
-    
-}
+};
+
+export default paymentClient;
