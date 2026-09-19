@@ -1,4 +1,4 @@
-import { UnauthorizedError } from "../utils/error";
+import { UnauthorizedError } from "../utils/error.js";
 
 export const userContext = async(req,res,next)=>{
     const userId = req.headers['x-user-id'];

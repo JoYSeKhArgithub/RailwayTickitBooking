@@ -1,4 +1,4 @@
-import { logger } from "../../config/logger";
+import { logger } from "../../config/logger.js";
 
 export class KafkaProducer{
     constructor(kafkaClient){
@@ -20,16 +20,16 @@ export class KafkaProducer{
     async connect(){
         if(this.isConnected) return;
         if(this.connectionPromise) return this.connectionPromise;
-        this.connectionPromise = this.producer().connect()
+        this.connectionPromise = this.producer.connect()
                                     .then(()=> {
                                         this.isConnected = true;
-                                        logger.info('Kafka producer conneted')
+                                        logger.info('Kafka producer connected');
                                     }).catch((error)=>{
                                         logger.error('Kafka producer connection failed', { error: error.message });
                                         throw error;
-                                    }).finnaly(()=>{
+                                    }).finally(()=>{
                                         this.connectionPromise = null;
-                                    })
+                                    });
         return this.connectionPromise;
     }
 

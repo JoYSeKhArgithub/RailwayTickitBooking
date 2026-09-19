@@ -6,8 +6,9 @@ export const logger = winston.createLogger({
     defaultMeta: { service: config.SERVICE_NAME },
     format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.printf(({ level, message, timestamp, service }) => {
-            return `[${timestamp}] [${level}] [${service}]: ${message}`;
+        winston.format.printf(({ level, message, timestamp, service, ...meta }) => {
+            const extra = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+            return `[${timestamp}] [${level}] [${service}]: ${message}${extra}`;
         })
     ),
     transports: [new winston.transports.Console()]

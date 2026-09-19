@@ -9,7 +9,7 @@ class RedisClient {
     constructor(){}
 
     static getInstance(){
-        if(!Redis.instance){
+        if(!RedisClient.instance){
             RedisClient.instance = new Redis(config.REDIS_URL,{
                 retryStrategy: (times)=>{
                     const delay = Math.min(times*50,2000);

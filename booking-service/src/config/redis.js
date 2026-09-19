@@ -1,2 +1,4 @@
-export { redis, RedisClient } from './Redis/redis.js';
-export { default } from './Redis/redis.js';
+import { redis, RedisClient } from './Redis/redis.js';
+export { redis, RedisClient };
+export default redis;
+

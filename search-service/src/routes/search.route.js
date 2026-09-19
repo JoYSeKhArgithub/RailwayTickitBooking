@@ -1,5 +1,5 @@
 import express from 'express';
-import { AllStationController, AllTrainController, AutoComplteStationConstroller, searchController } from '../controllers/search.controller';
+import { AllStationController, AllTrainController, AutoComplteStationConstroller, searchController } from '../controllers/search.controller.js';
 
 const router = express.Router();
 

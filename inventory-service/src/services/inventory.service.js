@@ -773,8 +773,8 @@ const recountAndPublishService = async(scheduleId)=>{
     return { available, locked, booked };
 };
 
-export const recomputeSegmentSeatStatuses = recomputeSegmentSeatStatus;
-export const recountAndPublish = recountAndPublishService;
+const recomputeSegmentSeatStatuses = recomputeSegmentSeatStatus;
+const recountAndPublish = recountAndPublishService;
 
 export {
     recomputeSegmentSeatStatus,

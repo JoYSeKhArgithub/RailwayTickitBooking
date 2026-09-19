@@ -1,3 +1,5 @@
+import { logger } from "../../config/logger.js";
+
 export class KafkaConsumer{
     constructor(kafkaClient,groupId){
         this.groupId = groupId;
@@ -34,7 +36,7 @@ export class KafkaConsumer{
                     }
                 )
             throw error;
-        }).finnaly(()=>{
+        }).finally(()=>{
             this.connectionPromise = null;
         })
         return this.connectionPromise;
