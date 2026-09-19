@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 RUN apk add --no-cache openssl
 
@@ -9,9 +9,17 @@ COPY payment-service/prisma ./prisma/
 
 RUN npm install
 RUN npx prisma generate
+RUN npm prune --production
+
+FROM node:20-alpine
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app/payment-service
 
 COPY common-service /app/common-service
 COPY payment-service ./
+COPY --from=builder /app/payment-service/node_modules ./node_modules
 
 EXPOSE 4011
 

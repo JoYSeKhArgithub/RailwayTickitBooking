@@ -5,8 +5,6 @@ networks:
     driver: bridge
 
 services:
-  
-
   postgres:
     image: postgres:15
     container_name: postgres
@@ -28,11 +26,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin
     restart: always
+    profiles:
+      - debug
     networks:
       - irctc-network
     environment:
@@ -43,6 +48,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
   redis:
     image: redis/redis-stack:6.2.6-v19
@@ -63,6 +73,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -73,11 +88,17 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_JVM_PERFORMANCE_OPTS: "-Xms64m -Xmx128m"
     ports:
       - "${ZOOKEEPER_PORT}:2181"
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_logs:/var/lib/zookeeper/log
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -100,6 +121,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xms192m -Xmx256m"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -108,11 +130,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     restart: always
+    profiles:
+      - debug
     networks:
       - irctc-network
     depends_on:
@@ -124,6 +153,11 @@ services:
       KAFKA_CLUSTERS_0_NAME: irctc-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
@@ -134,7 +168,7 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      ES_JAVA_OPTS: "-Xms256m -Xmx256m"
     ports:
       - "${ELASTICSEARCH_PORT}:9200"
     volumes:
@@ -145,11 +179,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 768M
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.12.0
     container_name: kibana
     restart: always
+    profiles:
+      - debug
     networks:
       - irctc-network
     depends_on:
@@ -159,7 +200,11 @@ services:
       - "${KIBANA_PORT}:5601"
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
 
   api-gateway:
     build:
@@ -174,6 +219,7 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       ALLOWED_ORIGINS: "*"
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -188,6 +234,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   user-service:
     build:
@@ -202,6 +253,7 @@ services:
     environment:
       PORT: 8080
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgresDB
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -217,6 +269,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   admine-pannel:
     build:
@@ -231,6 +288,7 @@ services:
     environment:
       PORT: 6123
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/admin_service_database
       KAFKA_BROKER: kafka:9092
@@ -241,6 +299,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   inventory-service:
     build:
@@ -255,6 +318,7 @@ services:
     environment:
       PORT: 4005
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/inventory_service_database
       KAFKA_BROKER: kafka:9092
@@ -265,6 +329,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   booking-service:
     build:
@@ -279,6 +348,7 @@ services:
     environment:
       PORT: 4008
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/booking_service_database
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -294,6 +364,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   payment-service:
     build:
@@ -308,6 +383,7 @@ services:
     environment:
       PORT: 4011
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/payment_service_database
       KAFKA_BROKERS: kafka:9092
@@ -319,6 +395,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   search-service:
     build:
@@ -333,6 +414,7 @@ services:
     environment:
       PORT: 4002
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       ELASTICSEARCH_URL: http://elasticsearch:9200
       KAFKA_BROKER: kafka:9092
@@ -342,6 +424,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
   notification-service:
     build:
@@ -356,6 +443,7 @@ services:
     environment:
       PORT: 4004
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=192"
       LOG_LEVEL: info
       KAFKA_BROKER: kafka:9092
       KAFKA_CLIENT_ID: notification-service
@@ -365,6 +453,11 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
 volumes:
   postgres_data:
